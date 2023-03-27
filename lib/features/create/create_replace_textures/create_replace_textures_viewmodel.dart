@@ -15,6 +15,7 @@ import 'package:tuple/tuple.dart';
 import 'package:retro/utils/path.dart' as p;
 
 enum CreateReplacementTexturesStep { question, selectFolder, selectOTR }
+
 typedef ProcessedFilesInFolder = List<Tuple2<File, TextureType>>;
 
 class CreateReplaceTexturesViewModel extends ChangeNotifier {
@@ -47,19 +48,23 @@ class CreateReplaceTexturesViewModel extends ChangeNotifier {
       isProcessing = true;
       notifyListeners();
 
-      HashMap<String, ProcessedFilesInFolder>? processedFiles = await compute(processFolder, selectedFolderPath!);
+      HashMap<String, ProcessedFilesInFolder>? processedFiles =
+          await compute(processFolder, selectedFolderPath!);
       if (processedFiles == null) {
-      // TODO: Handle this error.
-    } else {
-      this.processedFiles = processedFiles;
-    }
+        // TODO: Handle this error.
+      } else {
+        this.processedFiles = processedFiles;
+      }
       isProcessing = false;
       notifyListeners();
     }
   }
 
   onSelectOTR() async {
-    FilePickerResult? result = await FilePicker.platform.pickFiles(allowMultiple: false, type: FileType.custom, allowedExtensions: ['otr']);
+    FilePickerResult? result = await FilePicker.platform.pickFiles(
+        allowMultiple: false,
+        type: FileType.custom,
+        allowedExtensions: ['otr']);
     if (result != null && result.files.isNotEmpty) {
       selectedOTRPath = result.paths.first;
       if (selectedOTRPath == null) {
@@ -85,18 +90,20 @@ class CreateReplaceTexturesViewModel extends ChangeNotifier {
 
     isProcessing = true;
     notifyListeners();
-    HashMap<String, TextureManifestEntry>? processedFiles = await compute(processOTR, Tuple2(selectedOTRPath!, selectedDirectory));
+    HashMap<String, TextureManifestEntry>? processedFiles =
+        await compute(processOTR, Tuple2(selectedOTRPath!, selectedDirectory));
     if (processedFiles == null) {
       // TODO: Handle this error.
     } else {
       this.processedFiles = processedFiles;
     }
     isProcessing = false;
-    notifyListeners();    
+    notifyListeners();
   }
 }
 
-Future<HashMap<String, ProcessedFilesInFolder>?> processFolder(String folderPath) async {
+Future<HashMap<String, ProcessedFilesInFolder>?> processFolder(
+    String folderPath) async {
   HashMap<String, ProcessedFilesInFolder> processedFiles = HashMap();
 
   // search for and load manifest.json
@@ -110,15 +117,19 @@ Future<HashMap<String, ProcessedFilesInFolder>?> processFolder(String folderPath
   Map<String, dynamic> manifest = jsonDecode(manifestContents);
 
   // find all pngs in folder
-  List<FileSystemEntity> files = Directory(folderPath).listSync(recursive: true);
-  List<FileSystemEntity> pngFiles = files.where((file) => file.path.endsWith('.png')).toList();
+  List<FileSystemEntity> files =
+      Directory(folderPath).listSync(recursive: true);
+  List<FileSystemEntity> pngFiles =
+      files.where((file) => file.path.endsWith('.png')).toList();
 
   // for each png, check if it's in the manifest
   for (FileSystemEntity rawFile in pngFiles) {
     File pngFile = File(p.normalize(rawFile.path));
-    String pngPathRelativeToFolder = p.normalize(pngFile.path.split("$folderPath/").last.split('.').first);
+    String pngPathRelativeToFolder =
+        p.normalize(pngFile.path.split("$folderPath/").last.split('.').first);
     if (manifest.containsKey(pngPathRelativeToFolder)) {
-      TextureManifestEntry manifestEntry = TextureManifestEntry.fromJson(manifest[pngPathRelativeToFolder]);
+      TextureManifestEntry manifestEntry =
+          TextureManifestEntry.fromJson(manifest[pngPathRelativeToFolder]);
       // if it is, check if the file has changed
       Uint8List pngFileBytes = await pngFile.readAsBytes();
       String pngFileHash = sha256.convert(pngFileBytes).toString();
@@ -126,11 +137,17 @@ Future<HashMap<String, ProcessedFilesInFolder>?> processFolder(String folderPath
         // if it has, add it to the processed files list
         log("Found file with changed hash: $pngPathRelativeToFolder");
 
-        String pathWithoutFilename = p.normalize(pngPathRelativeToFolder.split("/").sublist(0, pngPathRelativeToFolder.split("/").length - 1).join("/"));
-        if(processedFiles.containsKey(pathWithoutFilename)){
-          processedFiles[pathWithoutFilename]!.add(Tuple2(pngFile, manifestEntry.textureType));
+        String pathWithoutFilename = p.normalize(pngPathRelativeToFolder
+            .split("/")
+            .sublist(0, pngPathRelativeToFolder.split("/").length - 1)
+            .join("/"));
+        if (processedFiles.containsKey(pathWithoutFilename)) {
+          processedFiles[pathWithoutFilename]!
+              .add(Tuple2(pngFile, manifestEntry.textureType));
         } else {
-          processedFiles[pathWithoutFilename] = [Tuple2(pngFile, manifestEntry.textureType)];
+          processedFiles[pathWithoutFilename] = [
+            Tuple2(pngFile, manifestEntry.textureType)
+          ];
         }
       }
     } else {
@@ -141,19 +158,22 @@ Future<HashMap<String, ProcessedFilesInFolder>?> processFolder(String folderPath
   return processedFiles;
 }
 
-Future<HashMap<String, TextureManifestEntry>?> processOTR(Tuple2<String, String> params) async {
+Future<HashMap<String, TextureManifestEntry>?> processOTR(
+    Tuple2<String, String> params) async {
   try {
     bool fileFound = false;
     HashMap<String, TextureManifestEntry> processedFiles = HashMap();
 
     log("Processing OTR: ${params.item1}");
-    MPQArchive? mpqArchive = MPQArchive.open(params.item1, 0, MPQ_OPEN_READ_ONLY);
-    
+    MPQArchive? mpqArchive =
+        MPQArchive.open(params.item1, 0, MPQ_OPEN_READ_ONLY);
+
     FileFindResource hFind = FileFindResource();
     mpqArchive.findFirstFile("*", hFind, null);
 
     // if folder we'll export to exists, delete it
-    String otrName = params.item1.split(Platform.pathSeparator).last.split(".").first;
+    String otrName =
+        params.item1.split(Platform.pathSeparator).last.split(".").first;
     Directory dir = Directory("${params.item2}/$otrName");
     if (dir.existsSync()) {
       log("Deleting existing folder: ${params.item2}/$otrName");
@@ -162,7 +182,9 @@ Future<HashMap<String, TextureManifestEntry>?> processOTR(Tuple2<String, String>
 
     // process first file
     String? fileName = hFind.fileName();
-    await processFile(fileName!, mpqArchive, "${params.item2}/$otrName/$fileName.png", (TextureManifestEntry entry) {
+    await processFile(
+        fileName!, mpqArchive, "${params.item2}/$otrName/$fileName.png",
+        (TextureManifestEntry entry) {
       processedFiles[fileName] = entry;
     });
 
@@ -172,12 +194,17 @@ Future<HashMap<String, TextureManifestEntry>?> processOTR(Tuple2<String, String>
         fileFound = true;
 
         String? fileName = hFind.fileName();
-        if (fileName == null || fileName == "(signature)" || fileName == "(listfile)" || fileName == "(attributes)") {
+        if (fileName == null ||
+            fileName == "(signature)" ||
+            fileName == "(listfile)" ||
+            fileName == "(attributes)") {
           continue;
         }
 
         log("Processing file: $fileName");
-        bool processed = await processFile(fileName, mpqArchive, "${params.item2}/$otrName/$fileName.png", (TextureManifestEntry entry) {
+        bool processed = await processFile(
+            fileName, mpqArchive, "${params.item2}/$otrName/$fileName.png",
+            (TextureManifestEntry entry) {
           processedFiles[fileName] = entry;
         });
 
@@ -208,7 +235,8 @@ Future<HashMap<String, TextureManifestEntry>?> processOTR(Tuple2<String, String>
   }
 }
 
-Future<bool> processFile(String fileName, MPQArchive mpqArchive, String outputPath, Function onProcessed) async {
+Future<bool> processFile(String fileName, MPQArchive mpqArchive,
+    String outputPath, Function onProcessed) async {
   try {
     FileResource file = mpqArchive.openFileEx(fileName, 0);
     int fileSize = file.size();
@@ -217,7 +245,7 @@ Future<bool> processFile(String fileName, MPQArchive mpqArchive, String outputPa
     soh.Texture texture = soh.Texture.empty();
     texture.open(fileData);
 
-    if(!texture.isValid){
+    if (!texture.isValid) {
       return false;
     }
 
@@ -226,7 +254,7 @@ Future<bool> processFile(String fileName, MPQArchive mpqArchive, String outputPa
     // Write to disk using the same path we found it in
     File textureFile = File(outputPath);
     await textureFile.create(recursive: true);
-    Uint8List pngBytes = texture.toPNGBytes();
+    Uint8List pngBytes = await texture.toPNGBytesAsync();
     await textureFile.writeAsBytes(pngBytes);
 
     // Track file path and hash

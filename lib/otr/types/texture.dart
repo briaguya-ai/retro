@@ -5,18 +5,19 @@ import 'package:retro/otr/resource.dart';
 import 'package:retro/otr/resource_type.dart';
 import 'package:retro/otr/version.dart';
 import 'package:retro/utils/tex_utils.dart';
+import 'package:retro/ffi.dart';
 
 enum TextureType {
-  Error (0, 0),
-  RGBA32bpp (1, 4),
-  RGBA16bpp (2, 2),
-  Palette4bpp (3, 0.5),
-  Palette8bpp (4, 1),
-  Grayscale4bpp (5, 0.5),
-  Grayscale8bpp (6, 1),
-  GrayscaleAlpha4bpp (7, 0.5),
-  GrayscaleAlpha8bpp (8, 1),
-  GrayscaleAlpha16bpp (9, 2);
+  Error(0, 0),
+  RGBA32bpp(1, 4),
+  RGBA16bpp(2, 2),
+  Palette4bpp(3, 0.5),
+  Palette8bpp(4, 1),
+  Grayscale4bpp(5, 0.5),
+  Grayscale8bpp(6, 1),
+  GrayscaleAlpha4bpp(7, 0.5),
+  GrayscaleAlpha8bpp(8, 1),
+  GrayscaleAlpha16bpp(9, 2);
 
   final int value;
   final double pixelMultiplier;
@@ -28,12 +29,12 @@ enum TextureType {
   }
 
   static TextureType fromValue(int value) {
-    return TextureType.values.firstWhere((TextureType type) => type.value == value);
+    return TextureType.values
+        .firstWhere((TextureType type) => type.value == value);
   }
 }
 
 class Texture extends Resource {
-
   TextureType textureType;
   int width, height;
   int texDataSize;
@@ -41,7 +42,9 @@ class Texture extends Resource {
   Texture? tlut;
   bool isPalette = false;
 
-  Texture(this.textureType, this.width, this.height, this.texDataSize, this.texData) : super(ResourceType.texture, 0, Version.deckard);
+  Texture(
+      this.textureType, this.width, this.height, this.texDataSize, this.texData)
+      : super(ResourceType.texture, 0, Version.deckard);
 
   Texture.empty() : this(TextureType.Error, 0, 0, 0, Uint8List(0));
 
@@ -61,26 +64,35 @@ class Texture extends Resource {
     height = readInt32();
     texDataSize = readInt32();
     texData = readBytes(texDataSize);
-    isPalette = textureType == TextureType.Palette4bpp || textureType == TextureType.Palette8bpp;
+    isPalette = textureType == TextureType.Palette4bpp ||
+        textureType == TextureType.Palette8bpp;
   }
 
   void setTLUT(Texture tlut) {
     this.tlut = tlut;
   }
 
-  void fromPNGImage(Uint8List png){
+  void fromPNGImage(Uint8List png) {
     convertPNGToN64(png);
   }
 
-  Uint8List toPNGBytes(){
-    return convertN64ToPNG()?? Uint8List(0);
+  Future<Uint8List> toPNGBytesAsync() async {
+    return api.convertNativeToPng(
+        bytes: texData,
+        format: textureType.value,
+        width: width,
+        height: height);
   }
 
-  int getTMEMSize(){
+  Uint8List toPNGBytes() {
+    return convertN64ToPNG() ?? Uint8List(0);
+  }
+
+  int getTMEMSize() {
     return (width / (64 / textureType.bitSize)).ceil() * height;
   }
 
-  int getMaxTMEMSize(){
+  int getMaxTMEMSize() {
     return isPalette ? 2048 : 4096;
   }
 }
